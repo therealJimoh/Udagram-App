@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a stack that deploys resources for Instagram like application, Udagram.
+Parameters:
+  EnvironmentName:
+    Description: This reference an Environment that will be prefixe to resources/Infrastructure name
+    Type: String
+  KeyPairName:
+    Description: This is a key pair name for our servers (.pem)
+    Type: String
+Resources:
+  UdagramS3ReadOnlyAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+  UdagramInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref UdagramS3ReadOnlyAccessRole
+  LoadBalancerSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group rule to Udagram Load balancer
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvironmentName}-VPCID
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  WebAppSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group rule to Udagram WebApp
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvironmentName}-VPCID
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+  WebAppLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties: 
+      ImageId: ami-0b152cfd354c4c7a4
+      InstanceType: t3.medium
+      KeyName: !Ref KeyPairName
+      SecurityGroups:
+        - !Ref WebAppSecGroup
+      BlockDeviceMappings:
+        - DeviceName: "/dev/sdk"
+          Ebs:
+            VolumeSize: "10"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          cd /var/www/html
+          echo "<h1>It works! Udagram, Udacity.</h1>" > index.html
+  WebAppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties: 
+      LaunchConfigurationName: !Ref WebAppLaunchConfiguration
+      VPCZoneIdentifier: 
+        - Fn::ImportValue: !Sub ${EnvironmentName}-PRIV-NETS
+      MinSize: 4
+      MaxSize: 4
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 60
+      TargetGroupARNs:
+        - Ref: WebAppTargetGroup
+  WebAppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckIntervalSeconds: 35
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 24
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: 
+        Fn::ImportValue: !Sub ${EnvironmentName}-VPCID
+  WebAppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      Subnets: 
+        - Fn::ImportValue: !Sub ${EnvironmentName}-PUBLIC1-SN
+        - Fn::ImportValue: !Sub ${EnvironmentName}-PUBLIC2-SN
+      SecurityGroups:
+        - Ref: LoadBalancerSecGroup
+  LBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: 
+            Ref: WebAppTargetGroup
+      LoadBalancerArn: 
+        Ref: WebAppLoadBalancer
+      Port: "80"
+      Protocol: HTTP
+  AppLBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties: 
+      Actions: 
+        - Type: forward
+          TargetGroupArn: !Ref WebAppTargetGroup
+      Conditions: 
+        - Field: path-pattern
+          Values: [/]
+      ListenerArn: !Ref LBListener
+      Priority: 1
+Outputs:
+  LBDnsName:
+    Description: A reference to the DNS name of the load balancer.
+    Value: !GetAtt WebAppLoadBalancer.DNSName
+    Export:
+      Name: !Sub ${EnvironmentName}-WebAppDnsName
+
+  
+  
+      
+
