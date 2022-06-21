@@ -73,7 +73,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} PublicSubnet (AZ1)
+          Value: !Sub ${EnvironmentName} PrivateSubnet (AZ1)
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -83,7 +83,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} PublicSubnet (AZ2)
+          Value: !Sub ${EnvironmentName} PrivateSubnet (AZ2)
   EIPNatGateway1:
     Type: AWS::EC2::EIP
     DependsOn: InternetGatewayAttachement
@@ -190,7 +190,7 @@ Outputs:
     Description: A list of Private subnets
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
     Export:
-      Name: !Sub ${EnvironmentName}-PRIV-NETS
+      Name: !Sub ${EnvironmentName}-PRIVATE-NETS
   PublicSubnet1:
     Description: A reference to the public subnet in AZ1
     Value: !Ref PublicSubnet1
