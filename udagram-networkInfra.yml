@@ -190,7 +190,7 @@ Outputs:
     Description: A list of Private subnets
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
     Export:
-      Name: !Sub ${EnvironmentName}-PRIVATE-NETS
+      Name: !Sub ${EnvironmentName}-PRIV-NETS
   PublicSubnet1:
     Description: A reference to the public subnet in AZ1
     Value: !Ref PublicSubnet1
